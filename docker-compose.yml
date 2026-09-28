@@ -12,6 +12,11 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
   api:
     build:
       context: .
@@ -19,12 +24,28 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SimpleBlog;User Id=sa;Password=Your_password123;TrustServerCertificate=True;"
+      ConnectionStrings__Redis: "redis:6379"
       Jwt__Key: "docker-super-secret-key-change-me-please-32bytes!!"
     ports:
       - "5080:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/SimpleBlog.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: "Development"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SimpleBlog;User Id=sa;Password=Your_password123;TrustServerCertificate=True;"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      api:
+        condition: service_started
 
   nextjs:
     build:

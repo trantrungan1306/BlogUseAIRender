@@ -12,6 +12,7 @@ interface AuthContextValue {
   hasRole: (role: Role) => boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -44,6 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.user);
   }, []);
 
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    const res = await authService.googleLogin(idToken);
+    setUser(res.user);
+  }, []);
+
   const logout = useCallback(() => {
     authService.logout();
     setUser(null);
@@ -52,8 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasRole = useCallback((role: Role) => user?.roles.includes(role) ?? false, [user]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, isAuthenticated: !!user, hasRole, login, register, logout }),
-    [user, loading, hasRole, login, register, logout]
+    () => ({ user, loading, isAuthenticated: !!user, hasRole, login, register, loginWithGoogle, logout }),
+    [user, loading, hasRole, login, register, loginWithGoogle, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

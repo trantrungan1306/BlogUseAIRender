@@ -11,17 +11,28 @@ public class PostService : IPostService
 {
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUser _currentUser;
+    private readonly ICacheService _cache;
 
-    public PostService(IApplicationDbContext db, ICurrentUser currentUser)
+    private const string CacheScope = "posts";
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
+
+    public PostService(IApplicationDbContext db, ICurrentUser currentUser, ICacheService cache)
     {
         _db = db;
         _currentUser = currentUser;
+        _cache = cache;
     }
 
     public async Task<PagedResult<PostListItemDto>> GetPublishedAsync(PostQuery query, CancellationToken ct = default)
     {
         var page = query.Page < 1 ? 1 : query.Page;
         var pageSize = query.PageSize is < 1 or > 50 ? 9 : query.PageSize;
+
+        var version = await _cache.GetVersionAsync(CacheScope, ct);
+        var cacheKey = $"posts:v{version}:s={query.Search}:c={query.Category}:p={page}:ps={pageSize}";
+        var cached = await _cache.GetAsync<PagedResult<PostListItemDto>>(cacheKey, ct);
+        if (cached is not null)
+            return cached;
 
         var q = _db.Posts
             .Include(p => p.Category)
@@ -46,13 +57,16 @@ public class PostService : IPostService
             .Take(pageSize)
             .ToListAsync(ct);
 
-        return new PagedResult<PostListItemDto>
+        var result = new PagedResult<PostListItemDto>
         {
             Items = items.Select(p => p.ToListItem()).ToList(),
             Page = page,
             PageSize = pageSize,
             TotalCount = total
         };
+
+        await _cache.SetAsync(cacheKey, result, CacheTtl, ct);
+        return result;
     }
 
     public async Task<PostDto> GetByIdAsync(int id, CancellationToken ct = default)
@@ -100,6 +114,9 @@ public class PostService : IPostService
     public async Task<PostDto> CreateAsync(CreatePostRequest request, CancellationToken ct = default)
     {
         var userId = RequireUserId();
+        if (!_currentUser.IsInRole(Roles.Blogger) && !_currentUser.IsInRole(Roles.Admin))
+            throw new ForbiddenException("Only bloggers can create posts.");
+
         Validate(request.Title, request.Summary, request.Content);
 
         var post = new Post
@@ -138,6 +155,7 @@ public class PostService : IPostService
         post.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
+        await _cache.BumpVersionAsync(CacheScope, ct);
         return await GetByIdAsync(post.Id, ct);
     }
 
@@ -195,6 +213,7 @@ public class PostService : IPostService
         });
 
         await _db.SaveChangesAsync(ct);
+        await _cache.BumpVersionAsync(CacheScope, ct);
         return await GetByIdAsync(post.Id, ct);
     }
 
@@ -243,6 +262,7 @@ public class PostService : IPostService
         EnsureOwnerOrAdmin(post);
         _db.Posts.Remove(post);
         await _db.SaveChangesAsync(ct);
+        await _cache.BumpVersionAsync(CacheScope, ct);
     }
 
     // ---- helpers -------------------------------------------------------

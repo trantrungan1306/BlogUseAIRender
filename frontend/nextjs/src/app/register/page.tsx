@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError } from "@/lib/api";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -80,6 +81,14 @@ export default function RegisterPage() {
               {loading ? "Creating account..." : "Create account"}
             </button>
           </form>
+
+          <div className="my-6 flex items-center gap-4">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs font-medium uppercase text-slate-400">or</span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <GoogleSignInButton redirectTo="/dashboard" />
 
           <p className="mt-6 text-center text-sm text-slate-500">
             Already have an account?{" "}

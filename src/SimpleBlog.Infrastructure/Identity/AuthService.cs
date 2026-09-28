@@ -1,4 +1,6 @@
+using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using SimpleBlog.Application.Auth;
 using SimpleBlog.Application.Common;
 using SimpleBlog.Core.Constants;
@@ -9,11 +11,13 @@ public class AuthService : IAuthService
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ITokenService _tokenService;
+    private readonly IConfiguration _configuration;
 
-    public AuthService(UserManager<ApplicationUser> userManager, ITokenService tokenService)
+    public AuthService(UserManager<ApplicationUser> userManager, ITokenService tokenService, IConfiguration configuration)
     {
         _userManager = userManager;
         _tokenService = tokenService;
+        _configuration = configuration;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
@@ -59,6 +63,60 @@ public class AuthService : IAuthService
         if (user is null) return null;
         var roles = await _userManager.GetRolesAsync(user);
         return ToDto(user, roles);
+    }
+
+    public async Task<AuthResponse> GoogleLoginAsync(GoogleLoginRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.IdToken))
+            throw new AppValidationException("A Google id token is required.");
+
+        var clientId = _configuration["Google:ClientId"];
+        if (string.IsNullOrWhiteSpace(clientId))
+            throw new ConflictException("Google sign-in is not configured on the server.");
+
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var settings = new GoogleJsonWebSignature.ValidationSettings { Audience = new[] { clientId } };
+            payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+        }
+        catch
+        {
+            throw new AppValidationException("Invalid Google token.");
+        }
+
+        var user = await _userManager.FindByLoginAsync("Google", payload.Subject);
+        if (user is null)
+        {
+            user = await _userManager.FindByEmailAsync(payload.Email);
+            if (user is null)
+            {
+                user = new ApplicationUser
+                {
+                    UserName = payload.Email,
+                    Email = payload.Email,
+                    EmailConfirmed = true,
+                    DisplayName = payload.Name ?? payload.Email.Split('@')[0],
+                    GoogleId = payload.Subject,
+                    AvatarUrl = payload.Picture,
+                    CreatedAt = DateTime.UtcNow
+                };
+                var created = await _userManager.CreateAsync(user);
+                if (!created.Succeeded)
+                    throw new AppValidationException(created.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
+                await _userManager.AddToRoleAsync(user, Roles.Blogger);
+            }
+            else
+            {
+                user.GoogleId = payload.Subject;
+                user.AvatarUrl ??= payload.Picture;
+                await _userManager.UpdateAsync(user);
+            }
+
+            await _userManager.AddLoginAsync(user, new UserLoginInfo("Google", payload.Subject, "Google"));
+        }
+
+        return await BuildResponseAsync(user);
     }
 
     private async Task<AuthResponse> BuildResponseAsync(ApplicationUser user)

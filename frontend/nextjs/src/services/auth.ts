@@ -16,6 +16,13 @@ export async function register(email: string, password: string, displayName: str
   return res;
 }
 
+// Pass the Google ID token obtained from Google Identity Services on the client.
+export async function googleLogin(idToken: string): Promise<AuthResponse> {
+  const res = await apiFetch<AuthResponse>("/auth/google", { method: "POST", body: { idToken } });
+  setToken(res.token);
+  return res;
+}
+
 export async function me(): Promise<User> {
   return apiFetch<User>("/auth/me", { auth: true });
 }

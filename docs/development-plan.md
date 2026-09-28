@@ -1,5 +1,9 @@
 # SimpleBlog – Development Plan
 
+> **Status:** Phases 0–10 implemented (MVP + Blazor + Messaging/Worker + Redis + Next.js + Tests + Docker).
+> Azure Service Bus is wired as an opt-in publisher/consumer (falls back to in-process handling when not configured);
+> Google OAuth is implemented end-to-end (API endpoint + Next.js Google Identity Services button).
+
 An incremental plan: get a working vertical slice first, then layer on moderation, messaging, caching,
 extra frontend, and deployment. Each phase should end with a runnable, tested state.
 

@@ -21,8 +21,11 @@ SimpleBlog.sln
 src/
   SimpleBlog.Core            # Entities, enums, domain constants
   SimpleBlog.Application     # DTOs, service interfaces + business logic, workflow rules
-  SimpleBlog.Infrastructure  # EF Core, Identity, JWT, seeding
+  SimpleBlog.Infrastructure  # EF Core, Identity, JWT, Redis cache, Google auth, seeding
   SimpleBlog.Api             # Controllers, auth, middleware, Swagger
+  SimpleBlog.Worker          # Background worker: outbox -> admin notifications
+tests/
+  SimpleBlog.Tests           # xUnit tests (workflow + authorization)
 frontend/
   nextjs/                    # Next.js frontend (professional, responsive)
   blazor/                    # Blazor WebAssembly frontend
@@ -31,11 +34,14 @@ docs/                        # spec + development plan
 ```
 
 ## Features
-- Email/password auth (JWT). "Continue with Google" is stubbed in the UI, ready to wire up.
+- Email/password auth (JWT) **and Google OAuth** (`POST /api/auth/google`, validates a Google ID token).
 - Roles: **Viewer**, **Blogger**, **Admin** — enforced server-side.
 - Post workflow: `Draft → PendingReview → Published / Rejected`.
 - Blogger dashboard (create/edit/submit, stats). Admin moderation queue (approve/reject).
-- Author notifications on approve/reject; Outbox row written on submit.
+- **Outbox pattern**: `PostSubmitted` events are written in the same transaction, then the **Worker**
+  polls the outbox and notifies admins.
+- **Redis cache-aside** on the published posts list (falls back to in-memory when Redis isn't configured).
+- xUnit tests covering the workflow and authorization rules.
 - Responsive, SaaS-style UI on both frontends.
 
 ## Demo accounts (seeded on first run)
@@ -82,6 +88,29 @@ dotnet run
 Open the URL printed in the console. API base URL is configured in
 [frontend/blazor/wwwroot/appsettings.json](frontend/blazor/wwwroot/appsettings.json).
 
+### 4. Background worker (optional)
+Processes the outbox and creates admin notifications when a post is submitted:
+```powershell
+dotnet run --project src/SimpleBlog.Worker
+```
+
+### 5. Tests
+```powershell
+dotnet test
+```
+
+### Optional: Redis & Google
+- **Redis**: set `ConnectionStrings:Redis` (e.g. `localhost:6379`) in
+  [src/SimpleBlog.Api/appsettings.json](src/SimpleBlog.Api/appsettings.json). When empty, an in-memory
+  distributed cache is used automatically.
+- **Google OAuth**: set `Google:ClientId` in the API config, then the Next.js login/register pages show a
+  real Google button (set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` in `.env.local`). The client sends the Google ID
+  token to `POST /api/auth/google`.
+- **Azure Service Bus** (optional): set `ConnectionStrings:ServiceBus` (or `ServiceBus:ConnectionString`)
+  and `ServiceBus:QueueName` for both the API and the Worker. When configured, the Worker **relays** outbox
+  events to the queue and a **consumer** turns them into notifications. When left empty, the Worker handles
+  events in-process — no broker required.
+
 ---
 
 ## Run everything with Docker
@@ -93,7 +122,9 @@ docker compose up --build
 | Next.js | http://localhost:3000 |
 | Blazor | http://localhost:5000 |
 | API | http://localhost:5080/swagger |
+| Worker | (no port — background service) |
 | SQL Server | localhost:1433 |
+| Redis | localhost:6379 |
 
 ---
 
@@ -101,6 +132,7 @@ docker compose up --build
 | Method | Route | Access |
 | --- | --- | --- |
 | POST | `/api/auth/register` · `/api/auth/login` | Anonymous |
+| POST | `/api/auth/google` | Anonymous |
 | GET | `/api/auth/me` | Authenticated |
 | GET | `/api/posts` · `/api/posts/{id}` · `/api/posts/slug/{slug}` | Anonymous (published) |
 | GET | `/api/posts/mine` | Authenticated |
