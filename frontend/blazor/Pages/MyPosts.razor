@@ -1,0 +1,81 @@
+@page "/dashboard/posts"
+@attribute [Authorize]
+@inject BlogApi Api
+
+<div class="container section">
+    <div class="dash-grid">
+        <DashboardNav />
+        <div>
+            <div class="section-head">
+                <h1 style="margin:0;font-size:1.5rem">My posts</h1>
+                <a class="btn btn-primary" href="/dashboard/posts/new">+ New post</a>
+            </div>
+
+            <div class="panel" style="margin-top:1.5rem">
+                @if (_loading)
+                {
+                    <p class="muted" style="padding:1.5rem">Loading…</p>
+                }
+                else if (_posts.Count == 0)
+                {
+                    <p class="muted" style="padding:1.5rem">No posts yet.</p>
+                }
+                else
+                {
+                    @foreach (var p in _posts)
+                    {
+                        <div class="list-row">
+                            <div style="min-width:0">
+                                <div style="display:flex;align-items:center;gap:.75rem">
+                                    <span style="font-weight:500">@p.Title</span>
+                                    <StatusBadge Status="@p.Status" />
+                                </div>
+                                <p class="muted" style="margin:.25rem 0 0">@p.Summary</p>
+                            </div>
+                            <div class="row-actions">
+                                @if (p.Status is "Draft" or "Rejected")
+                                {
+                                    <button class="btn btn-amber" @onclick="() => SubmitAsync(p.Id)" disabled="@(_busy == p.Id)">Submit</button>
+                                }
+                                <a class="btn btn-outline" href="@($"/dashboard/posts/{p.Id}/edit")">Edit</a>
+                                <button class="btn btn-rose" @onclick="() => DeleteAsync(p.Id)" disabled="@(_busy == p.Id)">Delete</button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<PostListItem> _posts = new();
+    private bool _loading = true;
+    private int? _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try { _posts = await Api.GetMineAsync(); }
+        catch { _posts = new(); }
+        finally { _loading = false; }
+    }
+
+    private async Task SubmitAsync(int id)
+    {
+        _busy = id;
+        try { await Api.SubmitAsync(id); await LoadAsync(); }
+        catch { }
+        finally { _busy = null; }
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        _busy = id;
+        try { await Api.DeleteAsync(id); _posts.RemoveAll(p => p.Id == id); }
+        catch { }
+        finally { _busy = null; }
+    }
+}

@@ -1,0 +1,22 @@
+@inherits LayoutComponentBase
+
+<NavBar />
+
+<div>
+    @Body
+</div>
+
+<footer class="footer">
+    <div class="container footer-inner">
+        <div class="brand">
+            <span class="brand-badge">S</span>
+            <span>SimpleBlog</span>
+        </div>
+        <p class="muted">© @DateTime.Now.Year SimpleBlog. Write. Share. Inspire.</p>
+        <div class="nav-links">
+            <a class="nav-link" href="/">Home</a>
+            <a class="nav-link" href="/login">Login</a>
+            <a class="nav-link" href="/register">Join</a>
+        </div>
+    </div>
+</footer>

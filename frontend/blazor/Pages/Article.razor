@@ -1,0 +1,82 @@
+@page "/blog/{Slug}"
+@inject BlogApi Api
+@inject NavigationManager Nav
+
+@if (_loading)
+{
+    <div class="app-loading" style="height:60vh"><div class="spinner"></div></div>
+}
+else if (_post is null)
+{
+    <div class="container section">
+        <h1>Article not found</h1>
+        <p class="muted">This story doesn't exist or has moved.</p>
+        <a class="btn btn-primary" href="/">Back to home</a>
+    </div>
+}
+else
+{
+    <div class="article-header">
+        <div class="container">
+            <a class="nav-link" href="/">← Back to articles</a>
+            @if (!string.IsNullOrEmpty(_post.CategoryName))
+            {
+                <div class="eyebrow" style="margin-top:1.5rem">@_post.CategoryName</div>
+            }
+            <h1 style="max-width:48rem;margin:.5rem 0 0">@_post.Title</h1>
+            <p class="muted" style="max-width:40rem;font-size:1.1rem">@_post.Summary</p>
+            <div style="display:flex;align-items:center;gap:.75rem;margin-top:1.5rem">
+                <span class="avatar">@_post.AuthorName.Substring(0, 1)</span>
+                <div>
+                    <div style="font-weight:500">@_post.AuthorName</div>
+                    <div class="muted">@FormatDate(_post.PublishedAt ?? _post.CreatedAt)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_post.CoverImageUrl))
+    {
+        <div class="container" style="padding-top:2rem">
+            <img class="article-cover" src="@_post.CoverImageUrl" alt="@_post.Title" />
+        </div>
+    }
+
+    <div class="article-body">
+        @foreach (var block in RenderBlocks(_post.Content))
+        {
+            @block
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = "";
+
+    private PostDetail? _post;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        try { _post = await Api.GetBySlugAsync(Slug); }
+        catch { _post = null; }
+        finally { _loading = false; }
+    }
+
+    private static string FormatDate(DateTime value) => value.ToString("MMMM d, yyyy");
+
+    private IEnumerable<MarkupString> RenderBlocks(string content)
+    {
+        foreach (var raw in content.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+            var text = System.Net.WebUtility.HtmlEncode(line);
+            if (line.StartsWith("# ")) yield return new MarkupString($"<h1>{System.Net.WebUtility.HtmlEncode(line[2..])}</h1>");
+            else if (line.StartsWith("## ")) yield return new MarkupString($"<h2>{System.Net.WebUtility.HtmlEncode(line[3..])}</h2>");
+            else if (line.StartsWith("- ")) yield return new MarkupString($"<ul><li>{System.Net.WebUtility.HtmlEncode(line[2..])}</li></ul>");
+            else yield return new MarkupString($"<p>{text}</p>");
+        }
+    }
+}

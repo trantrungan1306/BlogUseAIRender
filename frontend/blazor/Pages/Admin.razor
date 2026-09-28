@@ -1,0 +1,83 @@
+@page "/admin"
+@attribute [Authorize(Roles = "Admin")]
+@inject BlogApi Api
+@inject IJSRuntime JS
+
+<div class="container section">
+    <div class="section-head">
+        <div>
+            <h1 style="margin:0;font-size:1.5rem">Moderation</h1>
+            <p class="muted">Review posts submitted by writers.</p>
+        </div>
+        <span class="badge badge-pending" style="font-size:.875rem">@_posts.Count pending</span>
+    </div>
+
+    <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:1rem">
+        @if (_loading)
+        {
+            <p class="muted">Loading…</p>
+        }
+        else if (_posts.Count == 0)
+        {
+            <div class="panel muted" style="padding:4rem;text-align:center">All caught up. Nothing to review. 🎉</div>
+        }
+        else
+        {
+            @foreach (var p in _posts)
+            {
+                <div class="panel" style="padding:1.25rem">
+                    <div style="display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:flex-start">
+                        <div style="min-width:0">
+                            @if (!string.IsNullOrEmpty(p.CategoryName))
+                            {
+                                <span class="eyebrow">@p.CategoryName</span>
+                            }
+                            <h2 style="margin:.25rem 0 0;font-size:1.125rem">@p.Title</h2>
+                            <p class="muted" style="margin:.25rem 0 0">@p.Summary</p>
+                            <p class="muted" style="margin:.5rem 0 0;font-size:.75rem">by @p.AuthorName</p>
+                        </div>
+                        <div class="row-actions">
+                            <a class="btn btn-outline" href="@($"/blog/{p.Slug}")">Preview</a>
+                            <button class="btn btn-rose" @onclick="() => RejectAsync(p.Id)" disabled="@(_busy == p.Id)">Reject</button>
+                            <button class="btn btn-green" @onclick="() => ApproveAsync(p.Id)" disabled="@(_busy == p.Id)">Approve</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private List<PostListItem> _posts = new();
+    private bool _loading = true;
+    private int? _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try { _posts = await Api.GetPendingAsync(); }
+        catch { _posts = new(); }
+        finally { _loading = false; }
+    }
+
+    private async Task ApproveAsync(int id)
+    {
+        _busy = id;
+        try { await Api.ApproveAsync(id); _posts.RemoveAll(p => p.Id == id); }
+        catch { }
+        finally { _busy = null; }
+    }
+
+    private async Task RejectAsync(int id)
+    {
+        var reason = await JS.InvokeAsync<string>("prompt", "Reason for rejection:");
+        if (string.IsNullOrWhiteSpace(reason)) return;
+        _busy = id;
+        try { await Api.RejectAsync(id, reason); _posts.RemoveAll(p => p.Id == id); }
+        catch { }
+        finally { _busy = null; }
+    }
+}

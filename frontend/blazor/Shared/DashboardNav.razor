@@ -1,0 +1,20 @@
+@inject NavigationManager Nav
+
+<nav class="side-nav">
+    <a class="side-link @Active("/dashboard", true)" href="/dashboard">Overview</a>
+    <a class="side-link @Active("/dashboard/posts")" href="/dashboard/posts">My Posts</a>
+    <a class="side-link @Active("/dashboard/posts/new")" href="/dashboard/posts/new">Create Post</a>
+    <AuthorizeView Roles="Admin">
+        <a class="side-link @Active("/admin")" href="/admin">Pending Reviews</a>
+    </AuthorizeView>
+</nav>
+
+@code {
+    private string Active(string path, bool exact = false)
+    {
+        var current = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/');
+        if (current == "") current = "/";
+        var match = exact ? current == path : current.StartsWith(path);
+        return match ? "active" : "";
+    }
+}

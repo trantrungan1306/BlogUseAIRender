@@ -1,0 +1,21 @@
+@using SimpleBlog.Blazor.Models
+
+<span class="badge @CssClass">@Label</span>
+
+@code {
+    [Parameter] public string Status { get; set; } = "Draft";
+
+    private string CssClass => Status switch
+    {
+        "Published" => "badge-published",
+        "PendingReview" => "badge-pending",
+        "Rejected" => "badge-rejected",
+        _ => "badge-draft"
+    };
+
+    private string Label => Status switch
+    {
+        "PendingReview" => "Pending review",
+        _ => Status
+    };
+}

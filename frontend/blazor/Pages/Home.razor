@@ -1,0 +1,118 @@
+@page "/"
+@inject BlogApi Api
+
+<div class="hero">
+    <div class="hero-bg"></div>
+    <div class="container hero-inner">
+        <span class="pill">A modern publishing platform</span>
+        <h1>Write. Share. Inspire.</h1>
+        <p>Discover stories from our community — thoughtfully written, carefully reviewed, and beautifully presented.</p>
+        <div class="hero-actions">
+            <a class="btn btn-primary" style="background:#fff;color:var(--brand-700)" href="#featured">Explore articles</a>
+            <a class="btn btn-outline" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.3)" href="/register">Start writing</a>
+        </div>
+    </div>
+</div>
+
+<div class="container section" id="featured">
+    <div class="section-head">
+        <div>
+            <h1 style="font-size:1.5rem;margin:0">Featured articles</h1>
+            <p class="muted">Fresh stories, hand-picked for you.</p>
+        </div>
+        <input class="input" style="max-width:18rem" placeholder="Search articles..."
+               @bind="_search" @bind:event="oninput" @bind:after="ReloadAsync" />
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.5rem">
+        <button class="chip @(string.IsNullOrEmpty(_category) ? "active" : "")" @onclick="() => SetCategory(null)">All</button>
+        @foreach (var c in _categories)
+        {
+            <button class="chip @(_category == c.Slug ? "active" : "")" @onclick="() => SetCategory(c.Slug)">
+                @c.Name <span style="opacity:.7;font-size:.75rem">@c.PostCount</span>
+            </button>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div class="grid" style="margin-top:2.5rem">
+            @for (var i = 0; i < 6; i++)
+            {
+                <div class="card" style="height:18rem;opacity:.5"></div>
+            }
+        </div>
+    }
+    else if (_posts.Count == 0)
+    {
+        <div class="panel" style="margin-top:2.5rem;padding:4rem;text-align:center">
+            <p class="muted">No articles found. Try a different search.</p>
+        </div>
+    }
+    else
+    {
+        <div class="grid" style="margin-top:2.5rem">
+            @foreach (var post in _posts)
+            {
+                <a class="card" href="@($"/blog/{post.Slug}")">
+                    <div class="card-media @(string.IsNullOrEmpty(post.CoverImageUrl) ? "placeholder" : "")">
+                        @if (!string.IsNullOrEmpty(post.CoverImageUrl))
+                        {
+                            <img src="@post.CoverImageUrl" alt="@post.Title" />
+                        }
+                        else
+                        {
+                            @post.Title.Substring(0, 1)
+                        }
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(post.CategoryName))
+                        {
+                            <span class="eyebrow">@post.CategoryName</span>
+                        }
+                        <h3>@post.Title</h3>
+                        <p>@post.Summary</p>
+                        <div class="card-meta">
+                            <span>@post.AuthorName</span>
+                            <span>@FormatDate(post.PublishedAt ?? post.CreatedAt)</span>
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<PostListItem> _posts = new();
+    private List<CategoryDto> _categories = new();
+    private string _search = "";
+    private string? _category;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _categories = await Api.GetCategoriesAsync(); } catch { }
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetPublishedAsync(_search, _category);
+            _posts = result.Items;
+        }
+        catch { _posts = new(); }
+        finally { _loading = false; }
+    }
+
+    private async Task SetCategory(string? slug)
+    {
+        _category = slug;
+        await ReloadAsync();
+    }
+
+    private static string FormatDate(DateTime value) => value.ToString("MMM d, yyyy");
+}

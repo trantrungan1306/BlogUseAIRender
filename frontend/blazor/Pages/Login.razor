@@ -1,0 +1,73 @@
+@page "/login"
+@inject BlogApi Api
+@inject CustomAuthStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<div class="auth-wrap">
+    <div style="width:100%;max-width:28rem">
+        <div class="panel auth-card">
+            <h1 style="margin:0;font-size:1.5rem">Welcome back</h1>
+            <p class="muted">Sign in to continue to SimpleBlog.</p>
+
+            @if (_error is not null)
+            {
+                <div class="alert-error" style="margin-top:1rem">@_error</div>
+            }
+
+            <EditForm Model="_model" OnValidSubmit="SubmitAsync" style="margin-top:1.5rem">
+                <div class="field">
+                    <label class="label">Email</label>
+                    <InputText class="input" @bind-Value="_model.Email" type="email" placeholder="you@example.com" />
+                </div>
+                <div class="field">
+                    <label class="label">Password</label>
+                    <InputText class="input" @bind-Value="_model.Password" type="password" placeholder="••••••••" />
+                </div>
+                <button class="btn btn-primary" style="width:100%" type="submit" disabled="@_loading">
+                    @(_loading ? "Signing in..." : "Login")
+                </button>
+            </EditForm>
+
+            <div class="divider">or</div>
+            <button class="btn btn-outline" style="width:100%" disabled title="Google sign-in coming soon">
+                Continue with Google
+            </button>
+
+            <p class="muted" style="text-align:center;margin-top:1.5rem">
+                Don't have an account? <a href="/register" style="color:var(--brand-600);font-weight:600">Sign up</a>
+            </p>
+        </div>
+        <div style="background:var(--slate-100);border-radius:.75rem;padding:.75rem;text-align:center;margin-top:1rem;font-size:.75rem;color:var(--slate-500)">
+            Demo admin: <strong>admin@simpleblog.local</strong> / Admin123!$
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly LoginModel _model = new();
+    private string? _error;
+    private bool _loading;
+
+    [Parameter, SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _loading = true;
+        try
+        {
+            var res = await Api.LoginAsync(new LoginRequest(_model.Email, _model.Password));
+            await AuthProvider.MarkUserAsAuthenticatedAsync(res.Token);
+            Nav.NavigateTo(string.IsNullOrEmpty(ReturnUrl) ? "/dashboard" : "/" + ReturnUrl);
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        catch { _error = "Unable to sign in. Check that the API is running."; }
+        finally { _loading = false; }
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

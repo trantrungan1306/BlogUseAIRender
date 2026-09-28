@@ -1,0 +1,85 @@
+@page "/dashboard/posts/new"
+@attribute [Authorize]
+@inject BlogApi Api
+@inject NavigationManager Nav
+
+<div class="container section">
+    <div class="dash-grid">
+        <DashboardNav />
+        <div style="max-width:48rem">
+            <h1 style="margin:0;font-size:1.5rem">Create a new post</h1>
+            <p class="muted">Saved as a draft. Submit it for review when you're ready.</p>
+
+            <div class="panel" style="margin-top:1.5rem;padding:1.5rem">
+                @if (_error is not null)
+                {
+                    <div class="alert-error">@_error</div>
+                }
+                <div class="field">
+                    <label class="label">Title</label>
+                    <input class="input" @bind="_title" placeholder="An engaging headline" />
+                </div>
+                <div style="display:grid;gap:1.1rem;grid-template-columns:1fr 1fr">
+                    <div class="field">
+                        <label class="label">Category</label>
+                        <select class="select" @bind="_categoryId">
+                            <option value="0">Uncategorized</option>
+                            @foreach (var c in _categories)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label class="label">Cover image URL</label>
+                        <input class="input" @bind="_cover" placeholder="https://…" />
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Summary</label>
+                    <textarea class="textarea" rows="2" @bind="_summary" placeholder="A short teaser."></textarea>
+                </div>
+                <div class="field">
+                    <label class="label">Content (Markdown supported)</label>
+                    <textarea class="textarea" style="font-family:monospace" rows="14" @bind="_content" placeholder="# Heading&#10;&#10;Write your story…"></textarea>
+                </div>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @(_saving ? "Saving…" : "Save draft")
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CategoryDto> _categories = new();
+    private string _title = "";
+    private string _summary = "";
+    private string _content = "";
+    private string _cover = "";
+    private int _categoryId;
+    private bool _saving;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _categories = await Api.GetCategoriesAsync(); } catch { }
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        _saving = true;
+        try
+        {
+            await Api.CreateAsync(new CreatePostRequest(
+                _title, _summary, _content,
+                string.IsNullOrWhiteSpace(_cover) ? null : _cover,
+                _categoryId == 0 ? null : _categoryId));
+            Nav.NavigateTo("/dashboard/posts");
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        catch { _error = "Failed to save."; }
+        finally { _saving = false; }
+    }
+}

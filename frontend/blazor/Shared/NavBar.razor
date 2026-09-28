@@ -1,0 +1,74 @@
+@inject NavigationManager Nav
+@inject CustomAuthStateProvider AuthProvider
+
+<header class="navbar">
+    <div class="container navbar-inner">
+        <a class="brand" href="/">
+            <span class="brand-badge">S</span>
+            <span>SimpleBlog</span>
+        </a>
+
+        <nav class="nav-links">
+            <a class="nav-link" href="/">Home</a>
+            <a class="nav-link" href="/#featured">Articles</a>
+        </nav>
+
+        <div class="nav-actions nav-links">
+            <AuthorizeView>
+                <Authorized>
+                    <a class="nav-link" href="/dashboard">Dashboard</a>
+                    <AuthorizeView Roles="Admin" Context="admin">
+                        <a class="nav-link" href="/admin">Admin</a>
+                    </AuthorizeView>
+                    <span class="avatar">@GetInitial(context.User.Identity?.Name)</span>
+                    <button class="btn btn-outline" @onclick="LogoutAsync">Logout</button>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="nav-link" href="/login">Login</a>
+                    <a class="btn btn-primary" href="/register">Get started</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <button class="nav-toggle" @onclick="() => _open = !_open" aria-label="Menu">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="mobile-menu @(_open ? "open" : "")">
+        <div class="container">
+            <a class="side-link" href="/" @onclick="Close">Home</a>
+            <AuthorizeView>
+                <Authorized>
+                    <a class="side-link" href="/dashboard" @onclick="Close">Dashboard</a>
+                    <AuthorizeView Roles="Admin" Context="admin">
+                        <a class="side-link" href="/admin" @onclick="Close">Admin</a>
+                    </AuthorizeView>
+                    <a class="side-link" href="#" @onclick="LogoutAsync">Logout</a>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="side-link" href="/login" @onclick="Close">Login</a>
+                    <a class="side-link" href="/register" @onclick="Close">Get started</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</header>
+
+@code {
+    private bool _open;
+
+    private void Close() => _open = false;
+
+    private async Task LogoutAsync()
+    {
+        _open = false;
+        await AuthProvider.MarkUserAsLoggedOutAsync();
+        Nav.NavigateTo("/");
+    }
+
+    private static string GetInitial(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? "?" : name.Trim()[0].ToString().ToUpper();
+}

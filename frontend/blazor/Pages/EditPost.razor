@@ -1,0 +1,130 @@
+@page "/dashboard/posts/{Id:int}/edit"
+@attribute [Authorize]
+@inject BlogApi Api
+@inject NavigationManager Nav
+
+<div class="container section">
+    <div class="dash-grid">
+        <DashboardNav />
+        <div style="max-width:48rem">
+            @if (_loading)
+            {
+                <p class="muted">Loading…</p>
+            }
+            else if (_post is null)
+            {
+                <p class="muted">Post not found.</p>
+            }
+            else
+            {
+                <div class="section-head">
+                    <div style="display:flex;align-items:center;gap:.75rem">
+                        <h1 style="margin:0;font-size:1.5rem">Edit post</h1>
+                        <StatusBadge Status="@_post.Status" />
+                    </div>
+                    @if (_post.Status is "Draft" or "Rejected")
+                    {
+                        <button class="btn btn-amber" @onclick="SubmitAsync" disabled="@_submitting">Submit for review</button>
+                    }
+                </div>
+
+                @if (_post.Status == "Rejected" && !string.IsNullOrEmpty(_post.RejectionReason))
+                {
+                    <div class="alert-error" style="margin-top:1rem"><strong>Rejected:</strong> @_post.RejectionReason</div>
+                }
+
+                <div class="panel" style="margin-top:1.5rem;padding:1.5rem">
+                    @if (_error is not null)
+                    {
+                        <div class="alert-error">@_error</div>
+                    }
+                    <div class="field">
+                        <label class="label">Title</label>
+                        <input class="input" @bind="_title" />
+                    </div>
+                    <div style="display:grid;gap:1.1rem;grid-template-columns:1fr 1fr">
+                        <div class="field">
+                            <label class="label">Category</label>
+                            <select class="select" @bind="_categoryId">
+                                <option value="0">Uncategorized</option>
+                                @foreach (var c in _categories)
+                                {
+                                    <option value="@c.Id">@c.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label class="label">Cover image URL</label>
+                            <input class="input" @bind="_cover" />
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Summary</label>
+                        <textarea class="textarea" rows="2" @bind="_summary"></textarea>
+                    </div>
+                    <div class="field">
+                        <label class="label">Content (Markdown supported)</label>
+                        <textarea class="textarea" style="font-family:monospace" rows="14" @bind="_content"></textarea>
+                    </div>
+                    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                        @(_saving ? "Saving…" : "Save changes")
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private PostDetail? _post;
+    private List<CategoryDto> _categories = new();
+    private string _title = "", _summary = "", _content = "", _cover = "";
+    private int _categoryId;
+    private bool _loading = true, _saving, _submitting;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _categories = await Api.GetCategoriesAsync(); } catch { }
+        try
+        {
+            _post = await Api.GetByIdAsync(Id);
+            if (_post is not null)
+            {
+                _title = _post.Title;
+                _summary = _post.Summary;
+                _content = _post.Content;
+                _cover = _post.CoverImageUrl ?? "";
+                _categoryId = _post.CategoryId ?? 0;
+            }
+        }
+        catch { _post = null; }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        _saving = true;
+        try
+        {
+            _post = await Api.UpdateAsync(Id, new CreatePostRequest(
+                _title, _summary, _content,
+                string.IsNullOrWhiteSpace(_cover) ? null : _cover,
+                _categoryId == 0 ? null : _categoryId));
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        catch { _error = "Failed to save."; }
+        finally { _saving = false; }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _submitting = true;
+        try { await Api.SubmitAsync(Id); Nav.NavigateTo("/dashboard/posts"); }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _submitting = false; }
+    }
+}

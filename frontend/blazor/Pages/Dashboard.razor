@@ -1,0 +1,65 @@
+@page "/dashboard"
+@attribute [Authorize]
+@inject BlogApi Api
+
+<div class="container section">
+    <div class="dash-grid">
+        <DashboardNav />
+        <div>
+            <div class="section-head">
+                <div>
+                    <h1 style="margin:0;font-size:1.5rem">Dashboard</h1>
+                    <p class="muted">Here's what's happening with your writing.</p>
+                </div>
+                <a class="btn btn-primary" href="/dashboard/posts/new">+ New post</a>
+            </div>
+
+            <div class="stat-grid" style="margin-top:1.5rem">
+                <div class="panel stat"><div class="muted">Total posts</div><div class="num">@Count(null)</div></div>
+                <div class="panel stat"><div class="muted">Published</div><div class="num" style="color:#059669">@Count("Published")</div></div>
+                <div class="panel stat"><div class="muted">Pending</div><div class="num" style="color:#d97706">@Count("PendingReview")</div></div>
+                <div class="panel stat"><div class="muted">Drafts</div><div class="num" style="color:var(--slate-600)">@Count("Draft")</div></div>
+            </div>
+
+            <div class="panel" style="margin-top:2rem;padding:1.5rem">
+                <h2 style="margin:0 0 1rem;font-size:1.125rem">Recent posts</h2>
+                @if (_loading)
+                {
+                    <p class="muted">Loading…</p>
+                }
+                else if (_posts.Count == 0)
+                {
+                    <p class="muted">You haven't written anything yet. <a href="/dashboard/posts/new" style="color:var(--brand-600)">Create your first post</a>.</p>
+                }
+                else
+                {
+                    @foreach (var p in _posts.Take(5))
+                    {
+                        <div class="list-row">
+                            <span style="font-weight:500">@p.Title</span>
+                            <a href="@($"/dashboard/posts/{p.Id}/edit")" style="color:var(--brand-600);font-weight:500">Edit</a>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<PostListItem> _posts = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _posts = await Api.GetMineAsync(); }
+        catch { _posts = new(); }
+        finally { _loading = false; }
+    }
+
+    private string Count(string? status)
+    {
+        if (_loading) return "—";
+        return (status is null ? _posts.Count : _posts.Count(p => p.Status == status)).ToString();
+    }
+}

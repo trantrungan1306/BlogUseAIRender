@@ -1,0 +1,66 @@
+@page "/register"
+@inject BlogApi Api
+@inject CustomAuthStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<div class="auth-wrap">
+    <div class="panel auth-card">
+        <h1 style="margin:0;font-size:1.5rem">Create your account</h1>
+        <p class="muted">Join SimpleBlog and start writing today.</p>
+
+        @if (_error is not null)
+        {
+            <div class="alert-error" style="margin-top:1rem">@_error</div>
+        }
+
+        <EditForm Model="_model" OnValidSubmit="SubmitAsync" style="margin-top:1.5rem">
+            <div class="field">
+                <label class="label">Display name</label>
+                <InputText class="input" @bind-Value="_model.DisplayName" placeholder="Jane Writer" />
+            </div>
+            <div class="field">
+                <label class="label">Email</label>
+                <InputText class="input" @bind-Value="_model.Email" type="email" placeholder="you@example.com" />
+            </div>
+            <div class="field">
+                <label class="label">Password</label>
+                <InputText class="input" @bind-Value="_model.Password" type="password" placeholder="At least 6 characters" />
+            </div>
+            <button class="btn btn-primary" style="width:100%" type="submit" disabled="@_loading">
+                @(_loading ? "Creating account..." : "Create account")
+            </button>
+        </EditForm>
+
+        <p class="muted" style="text-align:center;margin-top:1.5rem">
+            Already have an account? <a href="/login" style="color:var(--brand-600);font-weight:600">Login</a>
+        </p>
+    </div>
+</div>
+
+@code {
+    private readonly RegisterModel _model = new();
+    private string? _error;
+    private bool _loading;
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _loading = true;
+        try
+        {
+            var res = await Api.RegisterAsync(new RegisterRequest(_model.Email, _model.Password, _model.DisplayName));
+            await AuthProvider.MarkUserAsAuthenticatedAsync(res.Token);
+            Nav.NavigateTo("/dashboard");
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        catch { _error = "Unable to register. Check that the API is running."; }
+        finally { _loading = false; }
+    }
+
+    private class RegisterModel
+    {
+        public string DisplayName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}
